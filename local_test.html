@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SignalR Test Client</title>
+    <!-- Downgraded to a v7.x version for better compatibility with older server-side extension -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.14/signalr.min.js"></script>
+</head>
+<body>
+    <h1>SignalR Test</h1>
+    <p>Farm ID to join: <input type="text" id="farmId" value="boa_vista" /> <!-- Default to boa_vista for testing -->
+    <p>User ID: <input type="text" id="userId" value="clientUser1" /></p>
+    <button onclick="connectAndJoin()">Connect & Join Group</button>
+    <button onclick="disconnect()">Disconnect</button>
+    <h2>Messages:</h2>
+    <ul id="messagesList"></ul>
+
+    <script>
+        let connection;
+        const messagesList = document.getElementById('messagesList');
+
+        // Placeholder for device elements on the page
+        let deviceElements = {};
+
+        function displayOrUpdateDevice(deviceData) {
+            const messagesList = document.getElementById('messagesList');
+            let deviceElement = deviceElements[deviceData.deviceId];
+
+            const messageText = `Device: ${deviceData.deviceId}, Farm: ${deviceData.farmId}, ` +
+                                `Lat: ${deviceData.location ? deviceData.location.latitude : 'N/A'}, ` +
+                                `Lon: ${deviceData.location ? deviceData.location.longitude : 'N/A'}, ` +
+                                `Battery: ${deviceData.battery_level || 'N/A'} (Received: ${new Date().toLocaleTimeString()})`;
+
+            if (!deviceElement) {
+                deviceElement = document.createElement("li");
+                deviceElement.id = `device-${deviceData.deviceId}`;
+                messagesList.appendChild(deviceElement);
+                deviceElements[deviceData.deviceId] = deviceElement;
+            } else {
+                // Optional: add a visual cue for update
+                deviceElement.style.backgroundColor = 'yellow';
+                setTimeout(() => { deviceElement.style.backgroundColor = ''; }, 1000);
+            }
+            deviceElement.textContent = messageText;
+            console.log("UI Updated for:", deviceData.deviceId);
+
+            // Also append a visible log entry so users can see each update event.
+            const logEntry = document.createElement("li");
+            logEntry.style.fontStyle = 'italic';
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] Updated device ${deviceData.deviceId}`;
+            messagesList.appendChild(logEntry);
+        }
+
+        async function negotiate() {
+            try {
+                const farmId = document.getElementById('farmId').value;
+                const userId = document.getElementById('userId').value;
+                const negotiateUrl = `http://localhost:7071/api/negotiate?userId=${encodeURIComponent(userId)}`;
+                const response = await fetch(negotiateUrl); // pass userId so negotiate token contains it
+                if (!response.ok) {
+                    throw new Error(`Negotiate failed: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log("Negotiate response:", data);
+                return data;
+            } catch (e) {
+                console.error("Negotiate error:", e);
+                messagesList.innerHTML += `<li>Negotiate error: ${e.message}</li>`;
+            }
+        }
+
+        async function connectAndJoin() {
+            messagesList.innerHTML = ""; // Clear old messages
+            deviceElements = {}; // Clear existing device elements on new connection
+            const farmId = document.getElementById('farmId').value;
+            const userId = document.getElementById('userId').value;
+
+            if (!farmId) {
+                alert("Please enter a Farm ID.");
+                return;
+            }
+
+            try {
+                const connectionInfo = await negotiate();
+                console.log("connectAndJoin received connectionInfo (raw):", connectionInfo);
+                console.log("typeof connectionInfo:", typeof connectionInfo);
+
+                if (connectionInfo && typeof connectionInfo === 'object') {
+                    console.log("'url' in connectionInfo?", 'url' in connectionInfo);
+                    console.log("typeof connectionInfo.url:", typeof connectionInfo.url, "Value:", connectionInfo.url);
+                    
+                    console.log("'accessToken' in connectionInfo?", 'accessToken' in connectionInfo);
+                    console.log("typeof connectionInfo.accessToken:", typeof connectionInfo.accessToken, "Value:", connectionInfo.accessToken);
+                } else {
+                    console.log("connectionInfo is not a valid object or is null/undefined.");
+                }
+
+                if (!connectionInfo || !connectionInfo.url || !connectionInfo.accessToken) {
+                    messagesList.innerHTML += `<li>Error: Could not get connection info from negotiate. (Property access failed)</li>`;
+                    return;
+                }
+
+                connection = new signalR.HubConnectionBuilder()
+                    .withUrl(connectionInfo.url, {
+                        accessTokenFactory: () => connectionInfo.accessToken
+                    })
+                    .withAutomaticReconnect([0, 2000, 5000, 10000]) // Example: Reconnect after 0, 2, 5, 10 seconds
+                    .configureLogging(signalR.LogLevel.Information)
+                    .build();
+
+                connection.onreconnecting(error => {
+                    console.warn(`SignalR connection lost. Attempting to reconnect... Error: ${error}`);
+                    messagesList.innerHTML += `<li>SignalR connection lost. Reconnecting...</li>`;
+                });
+
+                connection.onreconnected(connectionId => {
+                    console.log(`SignalR reconnected successfully! Connection ID: ${connectionId}`);
+                    messagesList.innerHTML += `<li>SignalR reconnected! New ID: ${connectionId}</li>`;
+                    // TODO in a real app: Re-join groups if necessary after re-establishing connection.
+                    // For this test, we will call join_group again to ensure group membership.
+                    // This assumes farmId and userId are still available from the input fields or stored.
+                    const farmIdCurrent = document.getElementById('farmId').value;
+                    const userIdCurrent = document.getElementById('userId').value;
+                    if (farmIdCurrent) {
+                        const joinParams = new URLSearchParams({ farmId: farmIdCurrent });
+                        if (userIdCurrent) {
+                            joinParams.append('userId', userIdCurrent);
+                        } else {
+                            // If no userId, use the new connectionId. Your join_group must support this.
+                            // joinParams.append('connectionId', connectionId); 
+                        }
+                        fetch(`http://localhost:7071/api/join_group?${joinParams.toString()}`, { method: 'POST' })
+                            .then(response => response.text())
+                            .then(text => {
+                                console.log("Re-joined group after reconnect:", text);
+                                messagesList.innerHTML += `<li>Re-joined group: ${text}</li>`;
+                            })
+                            .catch(err => {
+                                console.error("Error re-joining group after reconnect:", err);
+                                messagesList.innerHTML += `<li>Error re-joining group: ${err}</li>`;
+                            });
+                    }
+                });
+
+                connection.onclose(error => {
+                    console.error(`SignalR Connection closed. Error: ${error}`);
+                    messagesList.innerHTML += `<li>SignalR Connection Closed permanently or after retries. Error: ${error || 'No specific error'}</li>`;
+                });
+
+                // Define what happens when a message is received from the hub
+                // The 'target' name here ('newMessage', 'deviceUpdate', etc.)
+                // must match what ChangeFeedToSignalR sends.
+                // Let's assume ChangeFeedToSignalR sends messages with a target like 'updateDeviceState'
+                connection.on("updateDeviceState", (message) => {
+                    console.log("Message received for updateDeviceState:", message);
+
+                    // Accept either a JSON string or a plain object
+                    if (typeof message === 'string') {
+                        try {
+                            message = JSON.parse(message);
+                        } catch {
+                            console.warn('Ignoring non-JSON string message:', message);
+                            return;
+                        }
+                    }
+
+                    if (message && message.deviceId && message.farmId) {
+                        displayOrUpdateDevice(message);
+                    }
+                });
+
+                await connection.start();
+                messagesList.innerHTML += `<li>Connected to SignalR! Connection ID: ${connection.connectionId}</li>`;
+                console.log("SignalR Connected. Connection ID:", connection.connectionId);
+
+                // Now call your join_group function
+                // We need to pass connectionId OR userId. Let's pass userId as it's often preferred.
+                // If your join_group primarily uses connectionId, adjust accordingly.
+                const joinParams = new URLSearchParams({ farmId: farmId });
+                if (userId) {
+                    joinParams.append('userId', userId);
+                } else {
+                    // Fallback to connectionId if no userId is provided by the client for some reason
+                    // joinParams.append('connectionId', connection.connectionId); 
+                }
+                
+                const joinResponse = await fetch(`http://localhost:7071/api/join_group?${joinParams.toString()}`, { method: 'POST' });
+
+                if (joinResponse.ok) {
+                    const joinResult = await joinResponse.text();
+                    messagesList.innerHTML += `<li>Join group result: ${joinResult}</li>`;
+                    console.log("Join group result:", joinResult);
+                } else {
+                    const errorText = await joinResponse.text();
+                    messagesList.innerHTML += `<li>Error joining group: ${joinResponse.status} - ${errorText}</li>`;
+                    console.error("Error joining group:", joinResponse.status, errorText);
+                }
+
+            } catch (e) {
+                console.error("SignalR connection or join error:", e);
+                messagesList.innerHTML += `<li>SignalR connection or join error: ${e.message}</li>`;
+            }
+        }
+
+        function disconnect() {
+            if (connection) {
+                connection.stop().then(() => {
+                    messagesList.innerHTML += `<li>Disconnected.</li>`;
+                    console.log("Disconnected");
+                });
+            }
+        }
+    </script>
+</body>
+</html>

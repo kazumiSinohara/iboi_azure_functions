@@ -1,0 +1,22 @@
+{
+  "bindings": [
+    {
+      "type": "cosmosDBTrigger",
+      "name": "documents",
+      "direction": "in",
+      "connectionStringSetting": "COSMOS_CONNECTION",
+      "databaseName": "iotdb",
+      "containerName": "devicestate_v2",
+      "leaseContainerName": "leases",
+      "createLeaseContainerIfNotExists": true
+    },
+    {
+      "type": "signalR",
+      "name": "signalRMessages",
+      "direction": "out",
+      "hubName": "iboihub",
+      "connectionStringSetting": "AzureSignalRConnectionString"
+    }
+  ],
+  "scriptFile": "__init__.py"
+}

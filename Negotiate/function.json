@@ -1,0 +1,24 @@
+{
+  "bindings": [
+    {
+      "type": "httpTrigger",
+      "name": "req",
+      "direction": "in",
+      "methods": [ "get", "post" ],
+      "authLevel": "anonymous"
+    },
+    {
+      "type": "http",
+      "name": "$return",
+      "direction": "out"
+    },
+    {
+      "type": "signalRConnectionInfo",
+      "name": "connectionInfo",
+      "direction": "in",
+      "hubName": "iboihub",
+      "connectionStringSetting": "AzureSignalRConnectionString",
+      "userId": "{query.userId}"
+    }
+  ]
+}
