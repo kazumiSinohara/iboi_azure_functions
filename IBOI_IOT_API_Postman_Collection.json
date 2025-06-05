@@ -1,0 +1,139 @@
+{
+  "info": {
+    "_postman_id": "{{$guid}}",
+    "name": "IBOI IoT Hub - IoT Device Functions API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Postman collection for Azure Functions in AzureFunctions_iot_devices."
+  },
+  "item": [
+    {
+      "name": "SignalR",
+      "description": "Operations related to SignalR negotiation and group management.",
+      "item": [
+        {
+          "name": "Negotiate SignalR Connection",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl_iot}}/Negotiate?userId=testUser",
+              "host": [
+                "{{baseUrl_iot}}"
+              ],
+              "path": [
+                "Negotiate"
+              ],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "testUser",
+                  "description": "Optional User ID"
+                }
+              ]
+            },
+            "description": "Gets connection information for Azure SignalR Service. Can also be called with GET."
+          },
+          "response": []
+        },
+        {
+          "name": "Join SignalR Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"farmId\": \"YOUR_FARM_ID\",\n  \"userId\": \"testUser\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl_iot}}/join_group",
+              "host": [
+                "{{baseUrl_iot}}"
+              ],
+              "path": [
+                "join_group"
+              ]
+            },
+            "description": "Adds a user or connection to a SignalR group for a specific farm. Can also be called with GET and query parameters."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "DeviceData (Cosmos DB)",
+      "description": "Operations for retrieving device state data from Cosmos DB.",
+      "item": [
+        {
+          "name": "Get Device Data by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl_iot}}/devices/:device_id",
+              "host": [
+                "{{baseUrl_iot}}"
+              ],
+              "path": [
+                "devices",
+                ":device_id"
+              ],
+              "variable": [
+                {
+                  "key": "device_id",
+                  "value": "<YOUR_DEVICE_ID>",
+                  "description": "ID of the device (usually DeviceEUI)"
+                }
+              ]
+            },
+            "description": "Retrieves the current state/data for a specific device from Cosmos DB."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Farm Devices Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl_iot}}/farm/:farm_id",
+              "host": [
+                "{{baseUrl_iot}}"
+              ],
+              "path": [
+                "farm",
+                ":farm_id"
+              ],
+              "variable": [
+                {
+                  "key": "farm_id",
+                  "value": "<YOUR_FARM_ID>",
+                  "description": "ID of the farm"
+                }
+              ]
+            },
+            "description": "Retrieves current state/data for all devices on a specific farm from Cosmos DB."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl_iot",
+      "value": "https://iboi-func-iothandler.azurewebsites.net/api",
+      "type": "string",
+      "description": "Base URL for the deployed IoT Device Functions API. For local, use e.g. http://localhost:7072/api"
+    }
+  ]
+} 

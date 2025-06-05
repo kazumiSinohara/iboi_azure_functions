@@ -1,0 +1,317 @@
+openapi: 3.0.0
+info:
+  title: IBOI IoT Hub - IoT Device Functions API
+  version: "1.0.0"
+  description: API for handling IoT device data, real-time communication negotiation, and group management.
+
+servers:
+  - url: http://localhost:7072/api # Assuming a different local port for this app, adjust if necessary
+    description: Local development server for IoT Functions
+  - url: https://iboi-func-iothandler.azurewebsites.net/api
+    description: Production server for IoT Functions
+
+components:
+  schemas:
+    SignalRConnectionInfo:
+      type: object
+      properties:
+        url:
+          type: string
+          format: url
+          description: The URL for the SignalR client to connect to.
+        accessToken:
+          type: string
+          description: The access token for the SignalR client.
+      required:
+        - url
+        - accessToken
+
+    JoinGroupRequest:
+      type: object
+      properties:
+        farmId:
+          type: string
+          description: ID of the farm to join the group for (e.g., farm_YOUR_FARM_ID).
+        userId:
+          type: string
+          description: Optional. User ID to associate with the SignalR group. Provide userId or connectionId.
+          nullable: true
+        connectionId:
+          type: string
+          description: Optional. Specific SignalR connection ID to add to the group. Provide userId or connectionId.
+          nullable: true
+      # At least one of userId or connectionId should be present along with farmId.
+      # This complex validation (oneOf userId/connectionId) is hard to express in OpenAPI required, handled by function logic.
+
+    DeviceStateDocument: # Based on fields in IoTEventTrigger
+      type: object
+      properties:
+        id:
+          type: string
+          description: Device ID (typically the same as DeviceEUI from SQL DB).
+        farmId:
+          type: string
+          description: ID of the farm this device data belongs to.
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of when the event was enqueued or processed.
+        location:
+          type: object
+          properties:
+            latitude:
+              type: number
+              format: double
+            longitude:
+              type: number
+              format: double
+            direction:
+              type: string
+              nullable: true
+        battery_level:
+          type: integer # Or number, depending on precision from device
+          nullable: true
+        rsrp:
+          type: integer
+          nullable: true
+        csq:
+          type: integer # Or string, depending on device output
+          nullable: true
+        bands:
+          type: string # Or array, depending on device output
+          nullable: true
+        wakeup_reason:
+          type: string
+          nullable: true
+        gnss_satnum:
+          type: integer
+          nullable: true
+        app_version:
+          type: string
+          nullable: true
+        idESim:
+          type: string
+          nullable: true
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        detail:
+          type: string
+          nullable: true
+      required:
+        - message
+
+  parameters:
+    DeviceIdPath:
+      name: device_id # Matches route parameter in GetDeviceData
+      in: path
+      required: true
+      description: ID of the Device (usually DeviceEUI)
+      schema:
+        type: string
+    FarmIdPath:
+      name: farm_id # Matches route parameter in GetFarmDevices
+      in: path
+      required: true
+      description: ID of the Farm
+      schema:
+        type: string # Assuming farm_id might not always be UUID here, or could be a string identifier
+
+paths:
+  /Negotiate:
+    post:
+      summary: Get SignalR connection information
+      operationId: NegotiateSignalRConnection
+      tags: [SignalR]
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: Optional User ID to associate with the SignalR connection.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: SignalR connection information obtained successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalRConnectionInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get: # Also allow GET for negotiation as per function.json
+      summary: Get SignalR connection information (via GET)
+      operationId: NegotiateSignalRConnectionGet
+      tags: [SignalR]
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: Optional User ID to associate with the SignalR connection.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: SignalR connection information obtained successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalRConnectionInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /join_group:
+    post:
+      summary: Add a user or connection to a SignalR group for a farm
+      operationId: JoinSignalRGroup
+      tags: [SignalR]
+      requestBody:
+        description: Details for joining a SignalR group.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinGroupRequest'
+      responses:
+        '200':
+          description: Successfully added to group.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Added user [userId] to group farm_[farmId]."
+        '400':
+          description: Invalid request (e.g., missing farmId, or missing both userId and connectionId)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error or SignalR management API error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get: # Also allow GET for join_group as per function.json
+      summary: Add a user or connection to a SignalR group for a farm (via GET)
+      operationId: JoinSignalRGroupGet
+      tags: [SignalR]
+      parameters:
+        - name: farmId
+          in: query
+          required: true
+          description: ID of the farm to join the group for.
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: false
+          description: User ID to add to the group.
+          schema:
+            type: string
+        - name: connectionId
+          in: query
+          required: false
+          description: Connection ID to add to the group.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully added to group.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /devices/{device_id}: # Corresponds to GetDeviceData
+    get:
+      summary: Get current state/data for a specific device from Cosmos DB
+      operationId: GetDeviceDataCosmos
+      tags: [DeviceData]
+      parameters:
+        - $ref: '#/components/parameters/DeviceIdPath'
+      responses:
+        '200':
+          description: Device data retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceStateDocument'
+        '400':
+          description: Device ID is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Device not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /farm/{farm_id}: # Corresponds to GetFarmDevices
+    get:
+      summary: Get current state/data for all devices on a specific farm from Cosmos DB
+      operationId: GetFarmDevicesCosmos
+      tags: [DeviceData, Farms]
+      parameters:
+        - $ref: '#/components/parameters/FarmIdPath'
+      responses:
+        '200':
+          description: A list of device data for the farm.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeviceStateDocument'
+        '400':
+          description: Farm ID is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+tags:
+  - name: SignalR
+    description: Operations related to SignalR negotiation and group management.
+  - name: DeviceData
+    description: Operations for retrieving device state data (from Cosmos DB).
+  - name: Farms # Re-using from SQL API for GetFarmDevicesCosmos if appropriate
+    description: Operations related to farms. 
