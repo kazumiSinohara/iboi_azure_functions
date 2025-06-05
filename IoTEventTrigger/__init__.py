@@ -9,7 +9,6 @@ COSMOS_URI = os.environ["COSMOS_URI"]
 COSMOS_KEY = os.environ["COSMOS_KEY"]
 DB_NAME = "iotdb"
 CONTAINER_NAME = "devicestate_v2"
-FARM_ID = 'boa_vista'
 
 # Create Cosmos DB container client
 client = CosmosClient(COSMOS_URI, COSMOS_KEY)
@@ -21,44 +20,51 @@ def main(event: func.EventHubEvent):
     logging.info(f"iothub_metadata: {event.iothub_metadata}")
 
     try:
-        # Parse body and metadata
         msg = json.loads(event.get_body().decode("utf-8"))
-        device_id = (
-            event.iothub_metadata.get("connection-device-id") or
-            event.iothub_metadata.get("connectionDeviceId") or
-            event.metadata.get("connectionDeviceId") or
-            event.metadata.get("ConnectionDeviceId") or
-            "unknown"
-        )
+        
+        # Prioritize 'id' from payload for the document's primary ID.
+        # Fall back to connection device ID if payload 'id' is not present.
+        payload_device_id = msg.get("id") 
+
+        if payload_device_id:
+            document_id = payload_device_id
+            logging.info(f"Using device ID from payload: {document_id}")
+        else:
+            document_id = (
+                event.iothub_metadata.get("connection-device-id") or
+                event.iothub_metadata.get("connectionDeviceId") or
+                event.metadata.get("connectionDeviceId") or 
+                event.metadata.get("ConnectionDeviceId") or 
+                "unknown_device_id"
+            )
+            logging.info(f"Using connection device ID: {document_id}")
+
         timestamp = event.enqueued_time.isoformat()
+        
+        adjusted_lat = -1 * float(msg.get("latitude", 0))
+        adjusted_lon = -1 * float(msg.get("longitude", 0))
 
-        # Extract farmId and validate
-        farm_id = msg.get("farmId", FARM_ID)
-        adjusted_lat = -1*float(msg.get("latitude",0))
-        adjusted_lon = -1*float(msg.get("longitude",0))
-
-        # Compose Cosmos document
         document = {
-            "id": device_id,
-            "farmId": farm_id,
+            "id": document_id, 
             "timestamp": timestamp,
+            "connectionDeviceId": event.iothub_metadata.get("connection-device-id"), 
             "location": {
                 "latitude": adjusted_lat,
                 "longitude": adjusted_lon,
-                "direction": msg.get("eastwest-ns")
+                "direction": msg.get("direction") 
             },
-            "battery_level": msg.get("battery-level"),
+            "battery_level": msg.get("battery_level"),
             "rsrp": msg.get("rsrp"),
             "csq": msg.get("csq"),
             "bands": msg.get("bands"),
-            "wakeup_reason": msg.get("wakeup-reason"),
-            "gnss_satnum": msg.get("gnss-satnum"),
-            "app_version": msg.get("app_ver"),
+            "wakeup_reason": msg.get("wakeup_reason"),
+            "gnss_satnum": msg.get("gnss_satnum"),
+            "app_version": msg.get("app_version"),
             "idESim": msg.get("idESim")
         }
 
         container.upsert_item(document)
-        logging.info(f"✅ Upserted data for device '{device_id}' in farm '{farm_id}'")
+        logging.info(f"✅ Upserted data for document ID '{document_id}' (Connection Device ID: {document.get('connectionDeviceId')})")
 
     except Exception as e:
         logging.error(f"❌ Error processing event: {e}")
