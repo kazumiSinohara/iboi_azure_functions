@@ -47,7 +47,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"farmId\": \"YOUR_FARM_ID\",\n  \"userId\": \"testUser\"\n}",
+              "raw": "{\n  \"farmID\": \"YOUR_FARM_ID\",\n  \"userId\": \"testUser\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -17,7 +17,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     if not farm_id:
         return func.HttpResponse("Missing farm_id", status_code=400)
 
-    query = "SELECT * FROM c WHERE c.farmId = @farmId"
+    query = "SELECT * FROM c WHERE c.farmID = @farmId"
     parameters = [{"name": "@farmId", "value": farm_id}]
 
     try:

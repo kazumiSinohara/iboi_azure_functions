@@ -9,7 +9,7 @@ def main(documents: func.DocumentList,
     if documents:
         for doc in documents:
             logging.info(f'Document Id: {doc.get("id")}')
-            farm_id = doc.get('farmId')
+            farm_id = doc.get('farmID')
             device_id = doc.get('id')
 
             if farm_id:
@@ -18,7 +18,7 @@ def main(documents: func.DocumentList,
                 # Build a rich JSON payload so the client can use the fields directly
                 device_payload = {
                     "deviceId": device_id,
-                    "farmId": farm_id,
+                    "farmID": farm_id,
                     # Include additional fields if they exist in the document
                     "battery_level": doc.get("battery_level"),
                     "location": doc.get("location"),
@@ -40,4 +40,4 @@ def main(documents: func.DocumentList,
                     group_name,
                 )
             else:
-                logging.warning(f"Document {device_id} is missing farmId. Cannot send SignalR message.")
+                logging.warning(f"Document {device_id} is missing farmID. Cannot send SignalR message.")

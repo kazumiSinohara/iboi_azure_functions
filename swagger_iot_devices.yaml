@@ -49,7 +49,7 @@ components:
         id:
           type: string
           description: Device ID (typically the same as DeviceEUI from SQL DB).
-        farmId:
+        farmID:
           type: string
           description: ID of the farm this device data belongs to.
         timestamp:
